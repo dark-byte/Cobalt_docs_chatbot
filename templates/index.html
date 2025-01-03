@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cobalt Docs Chatbot</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #3b82f6;
+            --background: #f8fafc;
+            --chat-bg: #ffffff;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+
+        body {
+            background: var(--background);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            background: var(--chat-bg);
+            padding: 1rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .header h1 {
+            font-size: 1.5rem;
+            color: #1e293b;
+        }
+
+        .chat-container {
+            flex: 1;
+            padding: 1rem;
+            overflow-y: auto;
+            max-width: 768px;
+            margin: 0 auto;
+            width: 100%;
+            position: relative;
+        }
+
+        .message {
+            margin-bottom: 1rem;
+            display: flex;
+            gap: 0.75rem;
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        .message .icon {
+            width: 2rem;
+            height: 2rem;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--primary);
+            color: white;
+        }
+
+        .message.user .icon {
+            background: #64748b;
+        }
+
+        .message-content {
+            background: var(--chat-bg);
+            padding: 1rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+            max-width: 80%;
+        }
+
+        .message.bot .message-content {
+            background: #f0f9ff;
+            white-space: pre-wrap;
+        }
+
+        .message-content {
+            line-height: 1.5;
+        }
+
+        .message-content strong {
+            font-weight: 600;
+        }
+
+        .message-content code {
+            background: #e2e8f0;
+            padding: 0.2em 0.4em;
+            border-radius: 0.2em;
+        }
+
+        .sources {
+            margin-top: 0.5rem;
+            font-size: 0.875rem;
+            color: #64748b;
+        }
+
+        .sources a {
+            color: var(--primary);
+            text-decoration: none;
+        }
+
+        .input-container {
+            padding: 1rem;
+            background: var(--chat-bg);
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .input-wrapper {
+            max-width: 768px;
+            margin: 0 auto;
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        input {
+            flex: 1;
+            padding: 0.75rem 1rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.5rem;
+            outline: none;
+            font-size: 1rem;
+        }
+
+        input:focus {
+            border-color: var(--primary);
+        }
+
+        button {
+            padding: 0.75rem 1.5rem;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 1rem;
+        }
+
+        button:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+
+        #loadingIndicator {
+            border: 2px solid var(--primary);
+            border-top-color: transparent;
+            z-index: 20;
+            position: absolute;
+            left: 24px;
+            display: none;
+            margin-top: 5rem;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .loading {
+            display: inline-block;
+            width: 1rem;
+            height: 1rem;
+            border: 2px solid #ffffff;
+            border-radius: 50%;
+            border-top-color: transparent;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        <h1>Cobalt Docs Chatbot</h1>
+    </div>
+
+    <div class="chat-container" id="chatContainer">
+        <span id="loadingIndicator" class="loading" style="display: none;"></span>
+    </div>
+
+    <div class="input-container">
+        <div class="input-wrapper">
+            <input type="text" id="userInput" placeholder="Ask a question..." aria-label="User input">
+            <button id="sendButton" onclick="sendMessage()">
+                <span id="buttonText">Send</span>
+                <i class="fas fa-paper-plane"></i>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = '/api/chat';
+        const chatContainer = document.getElementById('chatContainer');
+        const userInput = document.getElementById('userInput');
+        const sendButton = document.getElementById('sendButton');
+
+        userInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        async function sendMessage() {
+            const message = userInput.value.trim();
+            if (!message) return;
+
+            // Add user message
+            addMessage('user', message);
+            userInput.value = '';
+
+            // Disable input while processing
+            setLoading(true);
+
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query: message })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    addMessage('bot', data.response, data.sources);
+                } else {
+                    addMessage('bot', 'Sorry, I encountered an error. Please try again.');
+                }
+            } catch (error) {
+                addMessage('bot', 'Sorry, I encountered an error. Please try again.');
+                console.error('Error:', error);
+            }
+
+            setLoading(false);
+        }
+
+        function addMessage(type, content, sources = []) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}`;
+
+            const icon = document.createElement('div');
+            icon.className = 'icon';
+            icon.innerHTML = type === 'user' ? '<i class="fas fa-user"></i>' : '<i class="fas fa-robot"></i>';
+
+            const messageContent = document.createElement('div');
+            messageContent.className = 'message-content';
+            messageContent.textContent = content;
+
+            if (sources.length > 0) {
+                const sourcesDiv = document.createElement('div');
+                sourcesDiv.className = 'sources';
+                sourcesDiv.innerHTML = 'Sources: <br>' + sources.map(s =>
+                    `<a href="${s.url}" target="_blank">${s.url}</a> (${(s.score * 100).toFixed(1)}%)<br>`
+                ).join('');
+                messageContent.appendChild(sourcesDiv);
+            }
+
+            messageDiv.appendChild(icon);
+            messageDiv.appendChild(messageContent);
+            chatContainer.appendChild(messageDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        function setLoading(isLoading) {
+            const loadingDiv = document.getElementById('loadingIndicator');
+            userInput.disabled = isLoading;
+            sendButton.disabled = isLoading;
+            if (isLoading) {
+                loadingDiv.style.display = 'block';
+                sendButton.innerHTML = '<span class="loading"></span>';
+            } else {
+                loadingDiv.style.display = 'none';
+                sendButton.innerHTML = '<span>Send</span><i class="fas fa-paper-plane"></i>';
+            }
+        }
+    </script>
+</body>
+
+</html>

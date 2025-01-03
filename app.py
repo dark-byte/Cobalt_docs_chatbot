@@ -2,13 +2,13 @@ import os
 import json
 from typing import List, Dict, Optional
 from dataclasses import dataclass
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 from openai import OpenAI
 from pinecone import Pinecone
 from dotenv import load_dotenv
 import logging
-from datetime import datetime
+from datetime import datetime, UTC
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -139,7 +139,7 @@ class DocsChatbot:
             if not documents:
                 return {
                     "error": "No relevant documents found",
-                    "timestamp": datetime.utcnow().isoformat()
+                    "timestamp": datetime.now(UTC).isoformat()
                 }
             
             response = self.generate_response(query, documents)
@@ -157,6 +157,10 @@ class DocsChatbot:
 
 # Initialize chatbot
 chatbot = DocsChatbot()
+
+@app.route('/')
+def home():
+    return render_template('index.html')
 
 @app.route('/api/chat', methods=['POST'])
 def chat():
@@ -204,4 +208,4 @@ def handle_error(error):
     }), 500
 
 if __name__ == "__main__":
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=True, host='0.0.0.0', port=8000)
