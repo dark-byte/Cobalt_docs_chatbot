@@ -1,0 +1,9 @@
+flask
+flask-cors
+requests
+openai
+pinecone-client
+python-dotenv
+gunicorn
+tqdm
+python-dotenv
